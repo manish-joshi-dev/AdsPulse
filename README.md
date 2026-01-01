@@ -5,7 +5,7 @@ AdsPulse is a full-stack diagnostic dashboard for Google Ads CSV exports. Advert
 ## Stack
 
 - Frontend: React, Vite, Tailwind CSS, React Query, Recharts, Framer Motion
-- Backend: Node.js, Express, MongoDB/Mongoose, Upstash Redis, Bull TCP fallback, Multer, csv-parse
+- Backend: Node.js, Express, MongoDB/Mongoose, BullMQ, ioredis, Upstash Redis, Multer, csv-parse
 - AI: Gemini via the official Google Generative AI SDK, installed through the `google-generativeai` npm alias
 - Deployment: Vercel frontend, Render backend, MongoDB Atlas database, Upstash Redis queue
 
@@ -48,7 +48,7 @@ AdsPulse is a full-stack diagnostic dashboard for Google Ads CSV exports. Advert
 
 6. Open `http://localhost:5173`.
 
-The frontend proxies `/api` requests to `http://localhost:5000`. If MongoDB is not configured in development, the API uses in-memory report/user storage. If Upstash Redis is not configured, synchronous CSV analysis still works and async upload jobs are disabled.
+The frontend proxies `/api` requests to `http://localhost:5000`. If MongoDB is not configured in development, the API uses in-memory report/user storage for synchronous reports. `REDIS_URL` must be set to an Upstash Redis `rediss://` endpoint because the BullMQ worker starts with the API.
 
 ## Environment Variables
 
@@ -58,9 +58,7 @@ Create `server/.env` from `.env.example`.
 | --- | --- | --- |
 | `GEMINI_API_KEY` | Optional locally | Gemini API key used for AI recommendations. If omitted, deterministic recommendations are generated from diagnostic rules. |
 | `MONGODB_URI` | Required in production | MongoDB Atlas connection string for users and reports. |
-| `UPSTASH_REDIS_REST_URL` | Required in production | Upstash Redis REST URL used for async analysis job records and queue polling. |
-| `UPSTASH_REDIS_REST_TOKEN` | Required in production | Upstash Redis REST token. Keep this server-side only. |
-| `REDIS_URL` | Optional fallback | Redis TCP connection string. Used only when Upstash REST credentials are not present. |
+| `REDIS_URL` | Required in production | Upstash Redis `rediss://` endpoint used by BullMQ/ioredis for async analysis jobs. |
 | `PORT` | Yes | Express server port. Defaults to `5000`. |
 | `NODE_ENV` | Yes | `development`, `test`, or `production`. |
 | `CLIENT_URL` | Yes | Allowed CORS origin for the frontend, such as `http://localhost:5173` or the Vercel URL. |
@@ -73,7 +71,7 @@ Create `server/.env` from `.env.example`.
 - `POST /api/auth/login` returns a JWT.
 - `GET /api/auth/me` returns the authenticated user.
 - `POST /api/upload` accepts a `file` multipart CSV upload and returns a completed report.
-- `POST /api/upload?async=true` queues analysis through Upstash Redis when REST credentials are configured.
+- `POST /api/upload?async=true` queues analysis through BullMQ using the Upstash Redis `REDIS_URL`.
 - `GET /api/upload/jobs/:jobId` returns async analysis job status.
 - `GET /api/analysis` lists analysis reports.
 - `GET /api/analysis/latest` returns the newest report.
@@ -101,9 +99,8 @@ A sample CSV is available at `client/public/sample-google-ads.csv`.
 ### Upstash Redis
 
 1. Create an Upstash Redis database.
-2. Copy the REST URL into `UPSTASH_REDIS_REST_URL`.
-3. Copy the REST token into `UPSTASH_REDIS_REST_TOKEN`.
-4. Do not expose the REST token to the Vercel frontend. It belongs only in the Render backend environment.
+2. Copy the Redis `rediss://` endpoint into `REDIS_URL`.
+3. Do not expose `REDIS_URL` to the Vercel frontend. It belongs only in the Render backend environment.
 
 ### Render Backend
 

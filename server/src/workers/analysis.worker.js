@@ -1,222 +1,205 @@
-import { EventEmitter } from "events";
-import Queue from "bull";
-import { v4 as uuidv4 } from "uuid";
-import { config } from "../config/env.js";
-import { analyzeUploadedCsv } from "../services/analysis.service.js";
-import { removeFile } from "../utils/cleanup.js";
+import { Worker } from "bullmq";
+import analysisQueue, { analysisQueueEvents } from "../config/queue.config.js";
+import redis from "../config/redis.config.js";
+import AnalysisJob from "../models/AnalysisJob.model.js";
+import { parseGoogleAdsCSV } from "../services/csvParser.service.js";
+import {
+  computePerformanceScore,
+  detectAnomalies,
+  runDiagnostics
+} from "../services/diagnostics.service.js";
+import { generateRecommendations } from "../services/gemini.service.js";
+import { deleteUploadedFile } from "../utils/fileCleanup.util.js";
 
-const queueKey = "adspulse:analysis:queue";
-const jobKey = (id) => `adspulse:analysis:jobs:${id}`;
-const jobTtlSeconds = 60 * 60 * 24 * 7;
+const CONCURRENCY = 2;
 
-const parseStoredJob = (value) => {
-  if (!value) {
-    return null;
-  }
+let worker = null;
 
-  if (typeof value === "string") {
-    return JSON.parse(value);
-  }
-
-  return value;
+const round = (value, digits = 2) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Number(parsed.toFixed(digits));
 };
 
-class UpstashAnalysisJob {
-  constructor(queue, record) {
-    this.queue = queue;
-    this.record = record;
-    this.id = record.id;
-    this.data = record.data;
-    this.failedReason = record.failedReason || null;
-    this.returnvalue = record.result || null;
-  }
+const safeDivide = (numerator, denominator) => {
+  if (!denominator) return 0;
+  return numerator / denominator;
+};
 
-  async getState() {
-    const latest = await this.queue.readJob(this.id);
-    return latest?.state || "unknown";
-  }
-
-  async progress(value) {
-    if (value === undefined) {
-      const latest = await this.queue.readJob(this.id);
-      return latest?.progress || 0;
+const summarizeAccount = (parsedData, score) => {
+  const totals = parsedData.rows.reduce(
+    (accumulator, row) => {
+      accumulator.totalCost += row.cost || 0;
+      accumulator.totalConversions += row.conversions || 0;
+      accumulator.totalConversionValue += row.conversionValue || 0;
+      return accumulator;
+    },
+    {
+      totalCost: 0,
+      totalConversions: 0,
+      totalConversionValue: 0
     }
+  );
 
-    await this.queue.updateJob(this.id, {
-      progress: value
-    });
-    this.record.progress = value;
-    return value;
-  }
-}
+  return {
+    campaignCount: parsedData.meta.campaignCount,
+    dateRange: parsedData.meta.dateRangeLabel,
+    totalCost: round(totals.totalCost, 2),
+    totalConversions: round(totals.totalConversions, 2),
+    accountROAS: round(safeDivide(totals.totalConversionValue, totals.totalCost), 2),
+    score: round(score.totalScore, 0),
+    scoreBand: score.scoreBand
+  };
+};
 
-class UpstashAnalysisQueue extends EventEmitter {
-  constructor(redis) {
-    super();
-    this.redis = redis;
-    this.closed = false;
-    this.pollTimer = null;
-    this.activeCount = 0;
-  }
-
-  async add(data) {
-    const now = new Date().toISOString();
-    const record = {
-      id: uuidv4(),
-      state: "queued",
-      progress: 0,
-      data,
-      result: null,
-      failedReason: null,
-      createdAt: now,
-      updatedAt: now
-    };
-
-    await this.writeJob(record);
-    await this.redis.rpush(queueKey, record.id);
-    return new UpstashAnalysisJob(this, record);
-  }
-
-  async getJob(id) {
-    const record = await this.readJob(id);
-    return record ? new UpstashAnalysisJob(this, record) : null;
-  }
-
-  async readJob(id) {
-    const value = await this.redis.get(jobKey(id));
-    return parseStoredJob(value);
-  }
-
-  async writeJob(record) {
-    await this.redis.set(jobKey(record.id), JSON.stringify(record), {
-      ex: jobTtlSeconds
-    });
-  }
-
-  async updateJob(id, changes) {
-    const record = await this.readJob(id);
-    if (!record) {
-      return null;
-    }
-
-    const updated = {
-      ...record,
-      ...changes,
-      updatedAt: new Date().toISOString()
-    };
-    await this.writeJob(updated);
-    return updated;
-  }
-
-  process(concurrency, handler) {
-    const poll = async () => {
-      if (this.closed) {
-        return;
+const updateMongoProgress = async (jobId, progress, updates = {}) => {
+  const document = await AnalysisJob.findOneAndUpdate(
+    { jobId },
+    {
+      $set: {
+        progress,
+        ...updates
       }
+    },
+    {
+      new: true,
+      runValidators: true
+    }
+  );
 
-      while (this.activeCount < concurrency) {
-        const id = await this.redis.lpop(queueKey);
-        if (!id) {
-          return;
+  if (!document) {
+    throw new Error(`AnalysisJob document not found for jobId ${jobId}`);
+  }
+
+  return document;
+};
+
+const updateProgress = async (job, progress, updates = {}) => {
+  await job.updateProgress(progress);
+  return updateMongoProgress(job.data.jobId, progress, updates);
+};
+
+export const processAnalysisJob = async (job) => {
+  const { jobId, filePath, fileName } = job.data;
+
+  try {
+    await updateProgress(job, 5, {
+      status: "processing",
+      errorMessage: undefined
+    });
+
+    const parsedData = await parseGoogleAdsCSV(filePath);
+    await updateProgress(job, 25);
+
+    const diagnostics = runDiagnostics(parsedData);
+    await updateProgress(job, 50);
+
+    const score = computePerformanceScore(parsedData.campaigns, diagnostics);
+    await updateProgress(job, 60);
+
+    const anomalies = detectAnomalies(parsedData);
+    await updateProgress(job, 70);
+
+    const aiRecommendations = await generateRecommendations(
+      diagnostics,
+      anomalies,
+      summarizeAccount(parsedData, score),
+      parsedData.dataQuality
+    );
+    await updateProgress(job, 85);
+
+    await updateProgress(job, 95, {
+      rowCount: parsedData.meta.rowCount,
+      campaignCount: parsedData.meta.campaignCount,
+      performanceScore: round(score.totalScore, 2),
+      scoreBand: score.scoreBand,
+      diagnostics,
+      anomalies,
+      aiRecommendations,
+      scoreBreakdown: score.scoreBreakdown
+    });
+
+    await deleteUploadedFile(filePath);
+    await updateProgress(job, 98);
+
+    await updateProgress(job, 100, {
+      status: "completed",
+      processedAt: new Date(),
+      errorMessage: undefined
+    });
+
+    return {
+      jobId,
+      fileName,
+      status: "completed",
+      rowCount: parsedData.meta.rowCount,
+      campaignCount: parsedData.meta.campaignCount,
+      performanceScore: round(score.totalScore, 2),
+      scoreBand: score.scoreBand
+    };
+  } catch (error) {
+    await job.updateProgress(100);
+    await AnalysisJob.findOneAndUpdate(
+      { jobId },
+      {
+        $set: {
+          status: "failed",
+          progress: 100,
+          errorMessage: error.message,
+          processedAt: new Date()
         }
-
-        this.activeCount += 1;
-        this.runJob(String(id), handler).finally(() => {
-          this.activeCount -= 1;
-        });
-      }
-    };
-
-    this.pollTimer = setInterval(() => {
-      poll().catch((error) => this.emit("error", error));
-    }, 1000);
-    poll().catch((error) => this.emit("error", error));
-  }
-
-  async runJob(id, handler) {
-    const record = await this.updateJob(id, {
-      state: "active",
-      progress: 1
-    });
-
-    if (!record) {
-      return;
-    }
-
-    const job = new UpstashAnalysisJob(this, record);
-
-    try {
-      const result = await handler(job);
-      job.returnvalue = result;
-      await this.updateJob(id, {
-        state: "completed",
-        progress: 100,
-        result,
-        failedReason: null
-      });
-      this.emit("completed", job, result);
-    } catch (error) {
-      job.failedReason = error.message;
-      await this.updateJob(id, {
-        state: "failed",
-        failedReason: error.message
-      });
-      this.emit("failed", job, error);
-    }
-  }
-
-  async close() {
-    this.closed = true;
-    if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = null;
-    }
-  }
-}
-
-export const createAnalysisQueue = (redisConnection = null) => {
-  if (redisConnection?.provider === "upstash-rest") {
-    return new UpstashAnalysisQueue(redisConnection.client);
-  }
-
-  if (!config.redisUrl) {
-    return null;
-  }
-
-  return new Queue("adspulse-analysis", config.redisUrl, {
-    defaultJobOptions: {
-      attempts: 2,
-      backoff: {
-        type: "exponential",
-        delay: 5000
       },
-      removeOnComplete: 50,
-      removeOnFail: 100
-    }
-  });
+      { new: true }
+    );
+    await deleteUploadedFile(filePath);
+    throw error;
+  }
 };
 
-export const startAnalysisWorker = (queue) => {
-  queue.process(2, async (job) => {
-    await job.progress(10);
-    try {
-      const report = await analyzeUploadedCsv(job.data);
-      await job.progress(100);
-      return {
-        reportId: report.id,
-        score: report.performanceScore,
-        grade: report.grade
-      };
-    } finally {
-      await removeFile(job.data.filePath);
-    }
+export const startAnalysisWorker = () => {
+  if (worker) {
+    return worker;
+  }
+
+  worker = new Worker("analysis-queue", processAnalysisJob, {
+    connection: redis,
+    concurrency: CONCURRENCY
   });
 
-  queue.on("completed", (job, result) => {
-    console.log(`Analysis job ${job.id} completed with report ${result.reportId}`);
+  worker.on("completed", (job) => {
+    console.log("analysis-queue worker completed job", {
+      jobId: job.id,
+      appJobId: job.data?.jobId,
+      fileName: job.data?.fileName
+    });
   });
 
-  queue.on("failed", (job, error) => {
-    console.error(`Analysis job ${job?.id || "unknown"} failed: ${error.message}`);
+  worker.on("failed", (job, error) => {
+    console.error("analysis-queue worker failed job", {
+      jobId: job?.id,
+      appJobId: job?.data?.jobId,
+      fileName: job?.data?.fileName,
+      message: error.message
+    });
   });
+
+  worker.on("progress", (job, progress) => {
+    console.log("analysis-queue worker progress", {
+      jobId: job.id,
+      appJobId: job.data?.jobId,
+      progress
+    });
+  });
+
+  console.log(`analysis-queue BullMQ worker started with concurrency ${CONCURRENCY}`);
+  return worker;
 };
+
+export const closeAnalysisWorker = async () => {
+  if (worker) {
+    await worker.close();
+    worker = null;
+  }
+};
+
+export { analysisQueue, analysisQueueEvents };

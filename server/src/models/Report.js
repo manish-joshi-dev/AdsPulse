@@ -55,9 +55,25 @@ const reportSchema = new mongoose.Schema(
       type: [mongoose.Schema.Types.Mixed],
       default: []
     },
+    diagnostics: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: []
+    },
     anomalies: {
       type: [mongoose.Schema.Types.Mixed],
       default: []
+    },
+    scoreBreakdown: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
+    },
+    dataQuality: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
+    },
+    parsedMeta: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
     },
     recommendations: {
       type: [mongoose.Schema.Types.Mixed],
@@ -73,4 +89,3 @@ reportSchema.index({ createdAt: -1 });
 reportSchema.index({ uploadedBy: 1, createdAt: -1 });
 
 export const Report = mongoose.models.Report || mongoose.model("Report", reportSchema);
-
