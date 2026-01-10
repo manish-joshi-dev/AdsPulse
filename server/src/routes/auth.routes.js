@@ -1,33 +1,36 @@
 import { Router } from "express";
 import { body } from "express-validator";
-import { login, me, register } from "../controllers/auth.controller.js";
-import { authenticate } from "../utils/authMiddleware.js";
-import { asyncHandler, validateRequest } from "../utils/http.js";
+import { login, logout, me, register } from "../controllers/auth.controller.js";
+import { authenticate } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
 router.post(
   "/register",
   [
-    body("name").trim().isLength({ min: 2 }).withMessage("Name must be at least 2 characters"),
-    body("email").isEmail().withMessage("A valid email is required").normalizeEmail(),
-    body("password").isLength({ min: 8 }).withMessage("Password must be at least 8 characters")
+    body("email").isEmail().withMessage("Valid email is required").normalizeEmail(),
+    body("password")
+      .isLength({ min: 8 })
+      .withMessage("Password must be at least 8 characters"),
+    body("name")
+      .trim()
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Name must be between 2 and 100 characters")
   ],
-  validateRequest,
-  asyncHandler(register)
+  register
 );
 
 router.post(
   "/login",
   [
-    body("email").isEmail().withMessage("A valid email is required").normalizeEmail(),
+    body("email").isEmail().withMessage("Valid email is required").normalizeEmail(),
     body("password").isString().notEmpty().withMessage("Password is required")
   ],
-  validateRequest,
-  asyncHandler(login)
+  login
 );
 
-router.get("/me", authenticate, asyncHandler(me));
+router.get("/me", authenticate, me);
+router.post("/logout", authenticate, logout);
 
 export default router;
 

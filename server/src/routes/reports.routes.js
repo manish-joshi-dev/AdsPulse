@@ -1,32 +1,31 @@
 import { Router } from "express";
-import { param } from "express-validator";
-import {
-  deleteReport,
-  getReport,
-  getReportSummary,
-  listReportHistory
-} from "../controllers/reports.controller.js";
-import { optionalAuthenticate } from "../utils/authMiddleware.js";
-import { asyncHandler, validateRequest } from "../utils/http.js";
+import { body, param } from "express-validator";
+import { generateReport, getReport, shareReport } from "../controllers/reports.controller.js";
+import { authenticate, optionalAuthenticate } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
-router.get("/", optionalAuthenticate, asyncHandler(listReportHistory));
-router.get("/summary", optionalAuthenticate, asyncHandler(getReportSummary));
-router.get(
-  "/:id",
-  optionalAuthenticate,
-  [param("id").trim().notEmpty().withMessage("Report id is required")],
-  validateRequest,
-  asyncHandler(getReport)
+const reportIdParam = param("reportId")
+  .isMongoId()
+  .withMessage("reportId must be a valid MongoDB ObjectId.");
+
+router.post(
+  "/generate",
+  authenticate,
+  [
+    body("jobId")
+      .isUUID()
+      .withMessage("jobId must be a valid analysis UUID."),
+    body("title")
+      .optional()
+      .trim()
+      .isLength({ min: 1, max: 180 })
+      .withMessage("title must be between 1 and 180 characters.")
+  ],
+  generateReport
 );
-router.delete(
-  "/:id",
-  optionalAuthenticate,
-  [param("id").trim().notEmpty().withMessage("Report id is required")],
-  validateRequest,
-  asyncHandler(deleteReport)
-);
+
+router.get("/:reportId", optionalAuthenticate, reportIdParam, getReport);
+router.post("/:reportId/share", authenticate, reportIdParam, shareReport);
 
 export default router;
-

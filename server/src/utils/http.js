@@ -31,16 +31,29 @@ export const errorHandler = (error, req, res, next) => {
   }
 
   const statusCode = error.statusCode || error.status || 500;
+  const code =
+    error.code ||
+    (statusCode === 401
+      ? "UNAUTHORIZED"
+      : statusCode === 403
+        ? "FORBIDDEN"
+        : statusCode === 404
+          ? "NOT_FOUND"
+          : statusCode === 422
+            ? "VALIDATION_ERROR"
+            : "REQUEST_ERROR");
   const payload = {
-    message: statusCode >= 500 ? "Unexpected server error" : error.message,
-    details: error.details || null
+    success: false,
+    error: {
+      code,
+      message: statusCode >= 500 ? "Unexpected server error" : error.message,
+      details: error.details || null
+    }
   };
 
   if (process.env.NODE_ENV !== "production") {
-    payload.error = error.message;
-    payload.stack = error.stack;
+    payload.error.stack = error.stack;
   }
 
   res.status(statusCode).json(payload);
 };
-

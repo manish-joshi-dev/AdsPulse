@@ -248,8 +248,8 @@ const analysisJobSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: {
-        values: ["queued", "processing", "completed", "failed"],
-        message: "Status must be queued, processing, completed, or failed"
+        values: ["queued", "processing", "completed", "failed", "archived"],
+        message: "Status must be queued, processing, completed, failed, or archived"
       },
       default: "queued",
       index: true
@@ -332,7 +332,7 @@ analysisJobSchema.virtual("id").get(function getId() {
 });
 
 analysisJobSchema.virtual("isTerminal").get(function getIsTerminal() {
-  return ["completed", "failed"].includes(this.status);
+  return ["completed", "failed", "archived"].includes(this.status);
 });
 
 analysisJobSchema.virtual("durationMs").get(function getDurationMs() {
