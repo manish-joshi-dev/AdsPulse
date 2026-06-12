@@ -18,21 +18,17 @@ export const useAnalysisPoller = (jobId) => {
     const pollStatus = async () => {
       try {
         const response = await analysis.getStatus(jobId);
-        
-        if (response.data.success) {
-          const { status: jobStatus, progress: jobProgress, errorMessage } = response.data.data;
-          
-          setStatus(jobStatus);
-          setProgress(jobProgress);
-          setError(errorMessage || null);
-          retryCount = 0;
-          backoffMs = 2000;
+        const { status: jobStatus, progress: jobProgress, errorMessage } = response;
 
-          // Stop polling when job is complete or failed
-          if (jobStatus === 'completed' || jobStatus === 'failed') {
-            setIsPolling(false);
-            if (intervalId) clearInterval(intervalId);
-          }
+        setStatus(jobStatus);
+        setProgress(jobProgress);
+        setError(errorMessage || null);
+        retryCount = 0;
+        backoffMs = 2000;
+
+        if (['completed', 'failed', 'archived'].includes(jobStatus)) {
+          setIsPolling(false);
+          if (intervalId) clearInterval(intervalId);
         }
       } catch (err) {
         retryCount += 1;

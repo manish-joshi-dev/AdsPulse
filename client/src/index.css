@@ -35,6 +35,29 @@
   --transition-base: 250ms ease;
 }
 
+/* Light theme — clean, crisp whites and cool greys */
+[data-theme="light"] {
+  --color-bg-primary: #F8FAFC;          /* Cool white — main background */
+  --color-bg-secondary: #FFFFFF;         /* Pure white — card backgrounds */
+  --color-bg-elevated: #F1F5F9;         /* Light grey — elevated cards */
+  --color-border: #E2E8F0;              /* Soft silver borders */
+  --color-border-hover: #CBD5E1;
+  
+  --color-accent-primary: #2563EB;      /* Bold blue — primary actions */
+  --color-accent-success: #10B981;      /* Green — healthy metrics */
+  --color-accent-warning: #F59E0B;      /* Amber — warnings */
+  --color-accent-critical: #EF4444;     /* Red — critical issues */
+  --color-accent-info: #3B82F6;
+  --color-accent-purple: #8B5CF6;       /* AI/Gemini features */
+  
+  --color-text-primary: #0F172A;        /* Near-black — primary text */
+  --color-text-secondary: #64748B;       /* Slate grey — secondary text */
+  --color-text-muted: #94A3B8;          /* Muted text */
+  
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05);
+  --shadow-elevated: 0 8px 32px rgba(0,0,0,0.08);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -241,4 +264,3 @@ a:hover {
   background-color: var(--color-accent-primary);
   color: white;
 }
-

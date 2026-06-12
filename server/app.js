@@ -5,10 +5,8 @@ import { applySecurity } from "./src/config/security.config.js";
 import { sanitizeInput } from "./src/middleware/validation.middleware.js";
 import { uploadRateLimit, analysisRateLimit, authRateLimit } from "./src/middleware/rateLimit.middleware.js";
 import { errorHandler } from "./src/middleware/errorHandler.middleware.js";
-import analysisRoutes from "./src/routes/analysis.routes.js";
-import authRoutes from "./src/routes/auth.routes.js";
-import reportsRoutes from "./src/routes/reports.routes.js";
-import uploadRoutes from "./src/routes/upload.routes.js";
+import apiRoutes from "./src/routes/index.js"; // Import the consolidated router
+
 const app = express();
 
 applySecurity(app);
@@ -16,6 +14,7 @@ app.use(express.json({ limit: "2mb" }));
 app.use(sanitizeInput);
 
 app.use(morgan(config.nodeEnv === "production" ? "combined" : "dev"));
+
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
@@ -25,11 +24,15 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-app.use("/api/auth", authRateLimit, authRoutes);
-app.use("/api/upload", uploadRateLimit, uploadRoutes);
-app.use("/api/analysis", analysisRateLimit, analysisRoutes);
-app.use("/api/reports", reportsRoutes);
+// Mount consolidated API routes
+app.use("/api", apiRoutes);
+
+// Apply rate limits to specific sub-routes within apiRoutes if not already applied internally
+// Note: This is a placeholder. Best practice is to apply rate limits directly in individual route files.
+app.use("/api/auth", authRateLimit);
+app.use("/api/upload", uploadRateLimit);
+app.use("/api/analysis", analysisRateLimit);
 
 app.use(errorHandler);
-export default app;
 
+export default app;

@@ -105,12 +105,12 @@ export const AnalysisPage = () => {
 
   const handleShare = async () => {
     try {
-      const response = await api.reports.share(analysis._id);
-      const shareUrl = `${window.location.origin}/report/${response.shareToken}`;
-      navigator.clipboard.writeText(shareUrl);
+      const report = await api.reports.generate(jobId, `${analysis.fileName} diagnostic report`);
+      const share = await api.reports.share(report._id);
+      navigator.clipboard.writeText(share.shareUrl);
       toast.success('Share link copied to clipboard!');
     } catch (error) {
-      toast.error('Failed to generate share link');
+      toast.error(error.message || 'Failed to generate share link');
     }
   };
 
@@ -120,7 +120,7 @@ export const AnalysisPage = () => {
       toast.success('Report generated!');
       navigate(`/report/${response._id}`);
     } catch (error) {
-      toast.error('Failed to generate report');
+      toast.error(error.message || 'Failed to generate report');
     }
   };
 

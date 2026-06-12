@@ -17,7 +17,7 @@ import {
   Github,
   Twitter
 } from 'lucide-react';
-import { PerformanceGauge } from '../landing/PerformanceGauge.jsx';
+import { PerformanceGauge } from '../components/landing/PerformanceGauge.jsx';
 
 export const LandingPage = () => {
   const navigate = useNavigate();
@@ -672,3 +672,4 @@ export const LandingPage = () => {
 };
 
 export default LandingPage;
+

@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import { AppShell } from './components/layout/AppShell.jsx';
-import { Dashboard } from './pages/Dashboard.jsx';
+import { DashboardPage } from './pages/DashboardPage.jsx';
 // Lazy load other pages for code splitting
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage.jsx'));
@@ -64,7 +64,7 @@ function App() {
           element={
             <ProtectedRoute>
               <ProtectedLayout title="Dashboard">
-                <Dashboard />
+                <DashboardPage />
               </ProtectedLayout>
             </ProtectedRoute>
           }
@@ -103,4 +103,3 @@ function App() {
 }
 
 export default App;
-

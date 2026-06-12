@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import { Router } from "express";
 import { body } from "express-validator";
 import multer from "multer";
@@ -9,6 +10,7 @@ import { authenticate } from "../middleware/auth.middleware.js";
 const router = Router();
 
 const uploadsDir = path.resolve(process.cwd(), "uploads");
+fs.mkdirSync(uploadsDir, { recursive: true });
 
 const storage = multer.diskStorage({
   destination: uploadsDir,
@@ -21,7 +23,10 @@ const csvFileFilter = (req, file, callback) => {
   const extension = path.extname(file.originalname).toLowerCase();
 
   if (extension !== ".csv") {
-    return callback(new Error("Only CSV files are allowed."));
+    const error = new Error("Only CSV files are allowed.");
+    error.statusCode = 400;
+    error.code = "INVALID_FILE_TYPE";
+    return callback(error);
   }
 
   return callback(null, true);

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Sidebar } from './Sidebar.jsx';
 import { TopBar } from './TopBar.jsx';
+import { ThemeToggle } from '../ui/ThemeToggle.jsx';
 import { Menu, X } from 'lucide-react';
 
 export const AppShell = ({ children, title, breadcrumb, actions }) => {

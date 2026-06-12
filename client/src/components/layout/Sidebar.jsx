@@ -59,7 +59,7 @@ export const Sidebar = ({ onClose }) => {
               <History className="w-5 h-5" />
               <span>Past Analyses</span>
             </NavLink>
-            <NavLink to="/reports" className={navLinkClass} onClick={onClose}>
+            <NavLink to="/history" className={navLinkClass} onClick={onClose}>
               <FileText className="w-5 h-5" />
               <span>Reports</span>
             </NavLink>

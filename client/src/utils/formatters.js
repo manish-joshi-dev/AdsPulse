@@ -26,11 +26,15 @@ export const formatDate = (value) => {
   if (!value) {
     return "No date";
   }
+  const date = new Date(value);
+  if (isNaN(date.getTime())) {
+    return "Invalid date";
+  }
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric"
-  }).format(new Date(value));
+  }).format(date);
 };
 
 export const scoreTone = (score) => {

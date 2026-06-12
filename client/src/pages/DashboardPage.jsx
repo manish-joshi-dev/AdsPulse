@@ -59,7 +59,7 @@ export const DashboardPage = () => {
   useEffect(() => {
     if (pollStatus === 'completed') {
       setIsUploading(false);
-      toast.success(`✓ Analysis complete! Score: ${uploadProgress}/100`);
+      toast.success('Analysis complete');
       navigate(`/analysis/${currentAnalysisJobId}`);
       setCurrentAnalysisJobId(null);
       refetchHistory();
@@ -68,7 +68,7 @@ export const DashboardPage = () => {
       toast.error(pollError || 'Analysis failed');
       setCurrentAnalysisJobId(null);
     }
-  }, [pollStatus, pollError, currentAnalysisJobId, uploadProgress, navigate, refetchHistory]);
+  }, [pollStatus, pollError, currentAnalysisJobId, navigate, refetchHistory]);
 
   // Handle file upload
   const handleUploadStart = async (file) => {
@@ -77,7 +77,7 @@ export const DashboardPage = () => {
 
     try {
       const response = await api.upload.uploadCSV(file, (progress) => {
-        setUploadProgress(Math.round(progress * 25)); // First 25% for upload
+        setUploadProgress(Math.round(progress * 0.25));
       });
 
       setCurrentAnalysisJobId(response.jobId);
@@ -86,7 +86,7 @@ export const DashboardPage = () => {
     } catch (error) {
       setIsUploading(false);
       setCurrentAnalysisJobId(null);
-      toast.error(error.response?.data?.error?.message || 'Upload failed');
+      toast.error(error.message || 'Upload failed');
     }
   };
 

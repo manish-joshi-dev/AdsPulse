@@ -10,6 +10,10 @@ export const errorHandler = (err, req, res, next) => {
     statusCode = 400;
     code = 'VALIDATION_ERROR';
     details = Object.values(err.errors).map(e => ({ field: e.path, message: e.message }));
+  } else if (err.statusCode && err.code) {
+    statusCode = err.statusCode;
+    code = err.code;
+    message = err.message;
   } else if (err.name === 'CastError') {
     statusCode = 400;
     code = 'INVALID_ID';
@@ -21,7 +25,7 @@ export const errorHandler = (err, req, res, next) => {
   } else if (err.code === 'LIMIT_FILE_SIZE') {
     statusCode = 413;
     code = 'FILE_TOO_LARGE';
-    message = 'File size exceeds the allowed limit (5MB)';
+    message = 'File size exceeds the allowed limit (50MB)';
   } else if (err.code === 11000) {
     statusCode = 409;
     code = 'DUPLICATE_ENTRY';

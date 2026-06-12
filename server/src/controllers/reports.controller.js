@@ -54,7 +54,7 @@ const buildReportSummary = (analysisJob) => {
 
 const buildShareUrl = (req, report) => {
   const baseUrl = process.env.CLIENT_URL || `${req.protocol}://${req.get("host")}`;
-  return `${baseUrl.replace(/\/$/, "")}/reports/${report._id}?shareToken=${report.shareToken}`;
+  return `${baseUrl.replace(/\/$/, "")}/report/${report._id}?shareToken=${report.shareToken}`;
 };
 
 export const generateReport = async (req, res) => {
