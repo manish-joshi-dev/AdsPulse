@@ -3,7 +3,6 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import { AppShell } from './components/layout/AppShell.jsx';
 import { Dashboard } from './pages/Dashboard.jsx';
-
 // Lazy load other pages for code splitting
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage.jsx'));
@@ -12,7 +11,6 @@ const HistoryPage = lazy(() => import('./pages/HistoryPage.jsx'));
 const ReportPage = lazy(() => import('./pages/ReportPage.jsx'));
 const NotFoundPage = lazy(() => import('./pages/NotFound.jsx'));
 const LandingPage = lazy(() => import('./pages/LandingPage.jsx'));
-
 // Loading fallback component
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-screen bg-[#0A0E1A]">
