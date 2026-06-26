@@ -2,6 +2,8 @@
 
 **Statistical diagnostics and AI-powered optimization engine for Google Ads campaigns.**
 
+![AdsPulse demo](./demo.gif)
+
 ---
 
 ## Why This Exists
